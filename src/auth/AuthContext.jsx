@@ -2,13 +2,21 @@ import { createContext, useContext, useEffect, useState } from 'react';
 import {
   onAuthStateChanged, signInWithEmailAndPassword, signInAnonymously, signOut,
 } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
-import { auth, db } from '../firebase';
+import { auth } from '../firebase';
 
-// Provides the current Firebase user and their role ('admin' | 'viewer')
-// to the whole app. The role is read from the Firestore `roles/{uid}` doc,
-// which is also what the security rules check — so the UI and the backend
-// agree on permissions.
+// Admin is determined by email. Anyone signed in with one of these emails is
+// an admin; everyone else (including anonymous "View Dashboard" guests) is a
+// read-only viewer. The SAME list is enforced in the Firestore security rules,
+// so the UI and the backend agree — and a viewer can't write even via devtools.
+const ADMIN_EMAILS = ['numan.ali@symufolk.com'];
+
+function roleForUser(u) {
+  if (!u || u.isAnonymous) return 'viewer';
+  const email = (u.email || '').toLowerCase();
+  return ADMIN_EMAILS.includes(email) ? 'admin' : 'viewer';
+}
+
+// Provides the current Firebase user and their role ('admin' | 'viewer').
 const AuthContext = createContext(null);
 
 // eslint-disable-next-line react-refresh/only-export-components
@@ -24,19 +32,12 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (u) => {
+    const unsubscribe = onAuthStateChanged(auth, (u) => {
       setUser(u);
       if (u) {
-        try {
-          const snap = await getDoc(doc(db, 'roles', u.uid));
-          // Least privilege: anyone without an explicit role doc is a viewer.
-          const resolved = snap.exists() ? (snap.data().role || 'viewer') : 'viewer';
-          setRole(resolved);
-          console.log(`[Auth] Signed in as ${u.email} — role: ${resolved}`);
-        } catch (err) {
-          console.error('[Auth] Failed to load role, defaulting to viewer:', err);
-          setRole('viewer');
-        }
+        const resolved = roleForUser(u);
+        setRole(resolved);
+        console.log(`[Auth] Signed in as ${u.isAnonymous ? 'guest' : u.email} — role: ${resolved}`);
       } else {
         setRole(null);
       }

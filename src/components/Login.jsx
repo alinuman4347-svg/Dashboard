@@ -12,7 +12,10 @@ function friendlyError(code) {
     case 'auth/invalid-credential':  return 'Incorrect email or password.';
     case 'auth/too-many-requests':   return 'Too many attempts. Please try again later.';
     case 'auth/network-request-failed': return 'Network error. Check your connection.';
-    default:                         return 'Could not sign in. Please try again.';
+    case 'auth/operation-not-allowed':
+    case 'auth/configuration-not-found':
+      return 'Email/Password sign-in is not enabled in Firebase yet.';
+    default:                         return `Could not sign in. (${code || 'unknown error'})`;
   }
 }
 
