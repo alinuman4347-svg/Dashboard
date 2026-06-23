@@ -46,10 +46,16 @@ export default function Login() {
       // On success, onAuthStateChanged opens the dashboard in view-only mode.
     } catch (err) {
       console.error('[Auth] Guest access failed:', err);
+      // Firebase returns 'admin-restricted-operation' (or 'operation-not-allowed')
+      // when the Anonymous sign-in provider is disabled in the console.
+      const notEnabled =
+        err?.code === 'auth/operation-not-allowed' ||
+        err?.code === 'auth/admin-restricted-operation' ||
+        err?.code === 'auth/configuration-not-found';
       setError(
-        err?.code === 'auth/operation-not-allowed'
-          ? 'Viewer access is not enabled. Ask the admin to enable Anonymous sign-in.'
-          : 'Could not open view-only mode. Please try again.'
+        notEnabled
+          ? 'Viewer access needs "Anonymous" sign-in enabled in Firebase (Authentication → Sign-in method).'
+          : `Could not open view-only mode. (${err?.code || 'unknown error'})`
       );
       setGuestBusy(false);
     }
