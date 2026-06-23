@@ -50,3 +50,16 @@ export function formatHours(hours) {
   if (m === 0) return `${h}h`;
   return `${h}h ${m}m`;
 }
+
+/**
+ * Formats a duration given in MINUTES as a clean "Xh YYm" string.
+ *   120 → "2h 00m"   30 → "30m"   90 → "1h 30m"   0 → "0m"
+ * Minutes are zero-padded to 2 digits when hours are present.
+ */
+export function formatMinutes(totalMinutes) {
+  const total = Math.max(0, Math.round(Number(totalMinutes) || 0));
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  if (h === 0) return `${m}m`;
+  return `${h}h ${String(m).padStart(2, '0')}m`;
+}

@@ -1,6 +1,6 @@
 import { Clock, Timer, CheckCircle2 } from 'lucide-react';
 import { useDashboardData } from './hooks/useDashboardData';
-import { formatHours } from './utils/parseHours';
+import { formatMinutes } from './utils/parseHours';
 import { useAuth } from './auth/AuthContext';
 import DashboardHeader from './components/DashboardHeader';
 import KPICard from './components/KPICard';
@@ -30,21 +30,21 @@ export default function Dashboard() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-4xl">
             <KPICard
               title="Total Time"
-              value={formatHours(kpis.totalHours)}
+              value={formatMinutes(kpis.totalMinutes)}
               subtitle="Total compensatory time earned"
               icon={Clock}
               color="cyan"
             />
             <KPICard
               title="Used Time"
-              value={formatHours(kpis.usedHours)}
+              value={formatMinutes(kpis.usedMinutes)}
               subtitle="Compensatory time used"
               icon={CheckCircle2}
               color="emerald"
             />
             <KPICard
               title="Remaining Time"
-              value={formatHours(kpis.remainingHours)}
+              value={formatMinutes(kpis.remainingMinutes)}
               subtitle="Compensatory time still available"
               icon={Timer}
               color="blue"

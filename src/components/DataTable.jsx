@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { Search, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Plus, Pencil, Trash2, RotateCcw } from 'lucide-react';
-import { formatHours } from '../utils/parseHours';
+import { formatMinutes } from '../utils/parseHours';
 import { getStatusColor, getApprovalColor, formatDisplayDate } from '../utils/statusUtils';
 import RecordModal from './RecordModal';
 
@@ -36,9 +36,9 @@ const COLUMNS = [
   { key: 'employeeName',      label: 'Employee' },
   { key: 'startTime',         label: 'Start' },
   { key: 'endTime',           label: 'End' },
-  { key: 'earnedHours',       label: 'Earned' },
-  { key: 'usedHours',         label: 'Used' },
-  { key: 'remainingHours',    label: 'Remaining' },
+  { key: 'earnedMinutes',     label: 'Earned' },
+  { key: 'usedMinutes',       label: 'Used' },
+  { key: 'remainingMinutes',  label: 'Remaining' },
   { key: 'muneebApproval',    label: 'Approval' },
   { key: 'compensatoryStatus',label: 'Status' },
 ];
@@ -195,15 +195,14 @@ export default function DataTable({
                   <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{row.startTime || '—'}</td>
                   <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{row.endTime || '—'}</td>
                   <td className="px-4 py-3 whitespace-nowrap">
-                    <span className="font-bold text-cyan-700">{formatHours(row.earnedHours)}</span>
-                    <span className="text-gray-400 text-xs ml-1">({row.totalHours})</span>
+                    <span className="font-bold text-cyan-700">{formatMinutes(row.earnedMinutes)}</span>
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap font-medium text-gray-700">
-                    {formatHours(row.usedHours)}
+                    {formatMinutes(row.usedMinutes)}
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap">
-                    <span className={`font-bold ${row.remainingHours > 0 ? 'text-blue-700' : 'text-gray-400'}`}>
-                      {formatHours(row.remainingHours)}
+                    <span className={`font-bold ${row.remainingMinutes > 0 ? 'text-blue-700' : 'text-gray-400'}`}>
+                      {formatMinutes(row.remainingMinutes)}
                     </span>
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap">

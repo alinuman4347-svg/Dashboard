@@ -23,31 +23,38 @@ function toFirestore(raw) {
   return rest;
 }
 
-// Resolve how many comp hours a record has USED.
-//  - Prefer the explicit `hoursUsed` field (new model), clamped to [0, earned].
-//  - Fall back to the legacy model for old records that predate hoursUsed:
-//    a "used"/Yes/past compensatory date means the whole record was used.
-function resolveUsedHours(row, earned) {
+// Resolve how many MINUTES of comp time a record has USED.
+//  - Prefer the explicit `minutesUsed` field (current model).
+//  - Migrate the previous `hoursUsed` (decimal hours) field → minutes.
+//  - Fall back to the legacy model for old records: a "used"/Yes/past
+//    compensatory date means the whole record was used.
+function resolveUsedMinutes(row, earnedMinutes) {
+  if (row.minutesUsed !== undefined && row.minutesUsed !== null && row.minutesUsed !== '') {
+    const u = Number(row.minutesUsed);
+    if (!Number.isNaN(u)) return Math.min(Math.max(Math.round(u), 0), earnedMinutes);
+  }
   if (row.hoursUsed !== undefined && row.hoursUsed !== null && row.hoursUsed !== '') {
     const u = Number(row.hoursUsed);
-    if (!Number.isNaN(u)) return Math.min(Math.max(u, 0), earned);
+    if (!Number.isNaN(u)) return Math.min(Math.max(Math.round(u * 60), 0), earnedMinutes);
   }
-  return getCompensatoryStatus(row.compensatoryDate) === 'Use Time' ? earned : 0;
+  return getCompensatoryStatus(row.compensatoryDate) === 'Use Time' ? earnedMinutes : 0;
 }
 
 function enrichRow(row) {
   const earnedHours = parseHours(row.totalHours);
-  const usedHours = Math.round(resolveUsedHours(row, earnedHours) * 100) / 100;
-  const remainingHours = Math.round((earnedHours - usedHours) * 100) / 100;
+  const earnedMinutes = Math.round(earnedHours * 60);
+  const usedMinutes = resolveUsedMinutes(row, earnedMinutes);
+  const remainingMinutes = Math.max(0, earnedMinutes - usedMinutes);
   return {
     ...row,
     id: row._id,
     employeeName: normalizeEmployee(row.employeeName),
     totalHoursNumeric: earnedHours,
     earnedHours,
-    usedHours,
-    remainingHours,
-    compensatoryStatus: getUsageStatus(earnedHours, usedHours),
+    earnedMinutes,
+    usedMinutes,
+    remainingMinutes,
+    compensatoryStatus: getUsageStatus(earnedMinutes, usedMinutes),
     approved: isApproved(row.muneebApproval),
     monthYear: getMonthYear(row.date),
     monthSortKey: getMonthSortKey(row.date),
@@ -144,19 +151,13 @@ export function useDashboardData() {
   }, [allData, filters]);
 
   const kpis = useMemo(() => {
-    // Total earned comp time across all (filtered) records.
-    const totalHours = filteredData.reduce((s, r) => s + r.earnedHours, 0);
-    // Used = sum of hours consumed; Remaining = earned − used (partial-aware).
-    const usedHours = filteredData.reduce((s, r) => s + r.usedHours, 0);
-    const remainingHours = totalHours - usedHours;
+    // All comp-time totals are tracked in whole minutes (partial-aware).
+    const totalMinutes = filteredData.reduce((s, r) => s + r.earnedMinutes, 0);
+    const usedMinutes = filteredData.reduce((s, r) => s + r.usedMinutes, 0);
+    const remainingMinutes = Math.max(0, totalMinutes - usedMinutes);
     // Missing = comp date is empty/null/"—" (future dates don't count as missing).
     const missingCompCount = filteredData.filter(r => isCompDateMissing(r.compensatoryDate)).length;
-    return {
-      totalHours:     Math.round(totalHours     * 100) / 100,
-      usedHours:      Math.round(usedHours      * 100) / 100,
-      remainingHours: Math.round(remainingHours * 100) / 100,
-      missingCompCount,
-    };
+    return { totalMinutes, usedMinutes, remainingMinutes, missingCompCount };
   }, [filteredData]);
 
   const chartData = useMemo(() => {

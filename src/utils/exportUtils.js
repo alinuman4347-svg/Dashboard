@@ -1,4 +1,4 @@
-import { formatHours } from './parseHours';
+import { formatMinutes } from './parseHours';
 import { formatDisplayDate } from './statusUtils';
 
 export function exportToCSV(data, filename = 'weekend_work_report.csv') {
@@ -12,9 +12,9 @@ export function exportToCSV(data, filename = 'weekend_work_report.csv') {
     row.employeeName,
     row.startTime,
     row.endTime,
-    formatHours(row.earnedHours),
-    formatHours(row.usedHours),
-    formatHours(row.remainingHours),
+    formatMinutes(row.earnedMinutes),
+    formatMinutes(row.usedMinutes),
+    formatMinutes(row.remainingMinutes),
     row.muneebApproval,
     row.compensatoryStatus,
   ]);

@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { X, Clock } from 'lucide-react';
 import { getUsageStatus, getStatusColor } from '../utils/statusUtils';
-import { parseHours, formatHours } from '../utils/parseHours';
+import { parseHours, formatMinutes } from '../utils/parseHours';
 
 // Convert "8:00 PM" / "20:30" / "8:30" → "HH:MM" for <input type="time">.
 function to24h(raw) {
@@ -77,8 +77,9 @@ export default function RecordModal({ record, employees, onSave, onClose }) {
     endTime:          isEdit ? to24h(record.endTime)          : '',
     totalHours:       isEdit ? (record.totalHours || '')      : '',
     muneebApproval:   isEdit ? (record.muneebApproval || 'Yes') : 'Yes',
-    // Hours of the earned comp time already used (partial allowed).
-    hoursUsed:        isEdit ? String(record.usedHours ?? 0)  : '0',
+    // Earned comp time already used, split into hours + minutes (partial allowed).
+    usedHours:        isEdit ? String(Math.floor((record.usedMinutes ?? 0) / 60)) : '0',
+    usedMinutes:      isEdit ? String((record.usedMinutes ?? 0) % 60)             : '0',
     compensatoryDate: isEdit && !compIsYes ? toInputDate(record.compensatoryDate) : '',
   });
 
@@ -92,16 +93,16 @@ export default function RecordModal({ record, employees, onSave, onClose }) {
     if (calc) setForm(f => ({ ...f, totalHours: calc }));
   }, [form.startTime, form.endTime, hoursLocked]);
 
-  // Earned / used / remaining — recomputed live as the form changes.
-  const earnedHours = useMemo(() => parseHours(form.totalHours), [form.totalHours]);
-  const usedHours = Math.max(0, Number(form.hoursUsed) || 0);
-  const usedExceeds = usedHours > earnedHours + 1e-9;
-  const remainingHours = Math.max(0, Math.round((earnedHours - usedHours) * 100) / 100);
+  // Earned / used / remaining — all in MINUTES, recomputed live.
+  const earnedMinutes = useMemo(() => Math.round(parseHours(form.totalHours) * 60), [form.totalHours]);
+  const usedMinutes = Math.max(0, (Number(form.usedHours) || 0) * 60 + (Number(form.usedMinutes) || 0));
+  const usedExceeds = usedMinutes > earnedMinutes;
+  const remainingMinutes = Math.max(0, earnedMinutes - usedMinutes);
 
-  // Computed status preview — updates in real time as hours used changes.
+  // Computed status preview — updates in real time as time used changes.
   const computedStatus = useMemo(
-    () => getUsageStatus(earnedHours, Math.min(usedHours, earnedHours)),
-    [earnedHours, usedHours]
+    () => getUsageStatus(earnedMinutes, Math.min(usedMinutes, earnedMinutes)),
+    [earnedMinutes, usedMinutes]
   );
 
   const statusColors = getStatusColor(computedStatus);
@@ -113,7 +114,6 @@ export default function RecordModal({ record, employees, onSave, onClose }) {
     if (!form.date || !form.employeeName.trim()) return;
     // Validation: used can never exceed earned. Clamp defensively on save.
     if (usedExceeds) return;
-    const safeUsed = Math.min(usedHours, earnedHours);
     onSave({
       date:             form.date,
       employeeName:     form.employeeName.trim(),
@@ -121,7 +121,7 @@ export default function RecordModal({ record, employees, onSave, onClose }) {
       endTime:          form.endTime,
       totalHours:       form.totalHours || '0',
       muneebApproval:   form.muneebApproval,
-      hoursUsed:        safeUsed,
+      minutesUsed:      Math.min(usedMinutes, earnedMinutes),
       compensatoryDate: form.compensatoryDate,
     });
   }
@@ -226,37 +226,49 @@ export default function RecordModal({ record, employees, onSave, onClose }) {
             <div className="grid grid-cols-3 gap-2">
               <div className="rounded-lg bg-cyan-50 border border-cyan-100 px-2 py-1.5 text-center">
                 <div className="text-[10px] font-semibold text-cyan-700 uppercase tracking-wide">Earned</div>
-                <div className="text-sm font-bold text-cyan-800">{formatHours(earnedHours)}</div>
+                <div className="text-sm font-bold text-cyan-800">{formatMinutes(earnedMinutes)}</div>
               </div>
               <div className="rounded-lg bg-emerald-50 border border-emerald-100 px-2 py-1.5 text-center">
                 <div className="text-[10px] font-semibold text-emerald-700 uppercase tracking-wide">Used</div>
-                <div className="text-sm font-bold text-emerald-800">{formatHours(Math.min(usedHours, earnedHours))}</div>
+                <div className="text-sm font-bold text-emerald-800">{formatMinutes(Math.min(usedMinutes, earnedMinutes))}</div>
               </div>
               <div className="rounded-lg bg-blue-50 border border-blue-100 px-2 py-1.5 text-center">
                 <div className="text-[10px] font-semibold text-blue-700 uppercase tracking-wide">Remaining</div>
-                <div className="text-sm font-bold text-blue-800">{formatHours(remainingHours)}</div>
+                <div className="text-sm font-bold text-blue-800">{formatMinutes(remainingMinutes)}</div>
               </div>
             </div>
 
-            {/* Hours used input */}
+            {/* Time used input — hours + minutes */}
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Hours Used</label>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Time Used</label>
               <div className="flex items-center gap-2">
-                <input
-                  type="number" min="0" max={earnedHours} step="0.25"
-                  value={form.hoursUsed}
-                  onChange={e => set('hoursUsed', e.target.value)}
-                  className={`${FIELD} ${usedExceeds ? 'border-red-300 focus:ring-red-400' : ''}`}
-                />
+                <div className="relative flex-1">
+                  <input
+                    type="number" min="0" step="1"
+                    value={form.usedHours}
+                    onChange={e => set('usedHours', e.target.value)}
+                    className={`${FIELD} pr-7 ${usedExceeds ? 'border-red-300 focus:ring-red-400' : ''}`}
+                  />
+                  <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-400">h</span>
+                </div>
+                <div className="relative flex-1">
+                  <input
+                    type="number" min="0" max="59" step="1"
+                    value={form.usedMinutes}
+                    onChange={e => set('usedMinutes', e.target.value)}
+                    className={`${FIELD} pr-8 ${usedExceeds ? 'border-red-300 focus:ring-red-400' : ''}`}
+                  />
+                  <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-400">min</span>
+                </div>
                 <button type="button"
-                  onClick={() => set('hoursUsed', String(earnedHours))}
+                  onClick={() => { set('usedHours', String(Math.floor(earnedMinutes / 60))); set('usedMinutes', String(earnedMinutes % 60)); }}
                   className="whitespace-nowrap text-xs font-semibold text-cyan-600 hover:text-cyan-700 border border-cyan-200 rounded-lg px-2.5 py-2">
                   Use all
                 </button>
               </div>
               {usedExceeds && (
                 <p className="text-xs text-red-500 mt-1">
-                  Hours used cannot exceed earned ({formatHours(earnedHours)}).
+                  Used time cannot exceed earned time.
                 </p>
               )}
             </div>
