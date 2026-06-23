@@ -27,7 +27,7 @@ export default function Dashboard() {
       <main className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
         {/* KPI Cards */}
         <section>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-4xl">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 max-w-4xl mx-auto items-stretch">
             <KPICard
               title="Total Time"
               value={formatMinutes(kpis.totalMinutes)}

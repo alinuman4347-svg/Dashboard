@@ -1,4 +1,4 @@
-export default function KPICard({ title, value, subtitle, icon: Icon, color = 'cyan', trend }) {
+export default function KPICard({ title, value, subtitle, icon: Icon, color = 'cyan' }) {
   const colorMap = {
     cyan:    { card: 'border-l-cyan-500',   icon: 'bg-cyan-50 text-cyan-600',   val: 'text-cyan-700' },
     blue:    { card: 'border-l-blue-500',   icon: 'bg-blue-50 text-blue-600',   val: 'text-blue-700' },
@@ -11,19 +11,18 @@ export default function KPICard({ title, value, subtitle, icon: Icon, color = 'c
   const c = colorMap[color] || colorMap.cyan;
 
   return (
-    <div className={`group bg-white rounded-xl shadow-sm border border-gray-100 border-l-4 ${c.card} p-4 cursor-default transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5`}>
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0 flex-1">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider truncate">{title}</p>
-          <p className={`text-2xl sm:text-3xl font-bold mt-1 ${c.val}`}>{value}</p>
-          {subtitle && <p className="text-xs text-gray-500 mt-1 truncate">{subtitle}</p>}
+    <div className={`group relative bg-white rounded-xl shadow-sm border border-gray-100 border-l-4 ${c.card} p-5 h-full min-h-[150px] flex flex-col items-center justify-center text-center cursor-default transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5`}>
+      {/* Icon — consistently pinned to the top-right corner */}
+      {Icon && (
+        <div className={`absolute top-3 right-3 w-10 h-10 rounded-lg flex items-center justify-center transition-transform duration-200 group-hover:scale-110 ${c.icon}`}>
+          <Icon className="w-5 h-5" />
         </div>
-        {Icon && (
-          <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 transition-transform duration-200 group-hover:scale-110 ${c.icon}`}>
-            <Icon className="w-5 h-5" />
-          </div>
-        )}
-      </div>
+      )}
+
+      {/* Centered content: title, value, subtitle */}
+      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{title}</p>
+      <p className={`text-3xl sm:text-4xl font-bold mt-2 leading-tight ${c.val}`}>{value}</p>
+      {subtitle && <p className="text-xs text-gray-500 mt-2 px-2">{subtitle}</p>}
     </div>
   );
 }
