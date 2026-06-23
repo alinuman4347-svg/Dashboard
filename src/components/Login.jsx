@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { LogIn, Lock, Mail, Loader2 } from 'lucide-react';
+import { LogIn, Lock, Mail, Loader2, Eye } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 
 // Friendly messages for the common Firebase Auth error codes.
@@ -17,11 +17,12 @@ function friendlyError(code) {
 }
 
 export default function Login() {
-  const { login } = useAuth();
+  const { login, loginAsGuest } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [guestBusy, setGuestBusy] = useState(false);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -34,6 +35,23 @@ export default function Login() {
       console.error('[Auth] Login failed:', err);
       setError(friendlyError(err?.code));
       setBusy(false);
+    }
+  }
+
+  async function handleGuest() {
+    setError('');
+    setGuestBusy(true);
+    try {
+      await loginAsGuest();
+      // On success, onAuthStateChanged opens the dashboard in view-only mode.
+    } catch (err) {
+      console.error('[Auth] Guest access failed:', err);
+      setError(
+        err?.code === 'auth/operation-not-allowed'
+          ? 'Viewer access is not enabled. Ask the admin to enable Anonymous sign-in.'
+          : 'Could not open view-only mode. Please try again.'
+      );
+      setGuestBusy(false);
     }
   }
 
@@ -99,17 +117,36 @@ export default function Login() {
 
           <button
             type="submit"
-            disabled={busy}
+            disabled={busy || guestBusy}
             className="w-full flex items-center justify-center gap-2 bg-cyan-600 hover:bg-cyan-700 active:bg-cyan-800 disabled:opacity-60 disabled:cursor-not-allowed text-white rounded-lg py-2.5 text-sm font-semibold transition-colors"
           >
             {busy
               ? <><Loader2 className="w-4 h-4 animate-spin" /> Signing in…</>
               : <><LogIn className="w-4 h-4" /> Sign In</>}
           </button>
+
+          {/* Divider */}
+          <div className="flex items-center gap-3 py-0.5">
+            <span className="h-px flex-1 bg-gray-100" />
+            <span className="text-xs text-gray-400 uppercase tracking-wide">or</span>
+            <span className="h-px flex-1 bg-gray-100" />
+          </div>
+
+          {/* Viewer access — no credentials required */}
+          <button
+            type="button"
+            onClick={handleGuest}
+            disabled={busy || guestBusy}
+            className="w-full flex items-center justify-center gap-2 border border-gray-200 hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed text-gray-700 rounded-lg py-2.5 text-sm font-semibold transition-colors"
+          >
+            {guestBusy
+              ? <><Loader2 className="w-4 h-4 animate-spin" /> Opening…</>
+              : <><Eye className="w-4 h-4" /> View Dashboard</>}
+          </button>
         </form>
 
         <p className="text-center text-xs text-gray-400 mt-4">
-          Access is role-based. Contact your admin if you can't sign in.
+          Sign in for admin access, or continue as a viewer (read-only).
         </p>
       </div>
     </div>

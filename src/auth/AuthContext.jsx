@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import {
-  onAuthStateChanged, signInWithEmailAndPassword, signOut,
+  onAuthStateChanged, signInWithEmailAndPassword, signInAnonymously, signOut,
 } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
@@ -48,6 +48,11 @@ export function AuthProvider({ children }) {
   const login = (email, password) =>
     signInWithEmailAndPassword(auth, email.trim(), password);
 
+  // Guest / Viewer access — no credentials. A guest is signed in anonymously,
+  // has no role doc, and so resolves to 'viewer' (read-only). The Firestore
+  // rules still block all writes for this session on the backend.
+  const loginAsGuest = () => signInAnonymously(auth);
+
   const logout = () => signOut(auth);
 
   const value = {
@@ -56,6 +61,7 @@ export function AuthProvider({ children }) {
     isAdmin: role === 'admin',
     loading,
     login,
+    loginAsGuest,
     logout,
   };
 
