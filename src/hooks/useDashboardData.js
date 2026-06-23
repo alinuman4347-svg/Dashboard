@@ -7,8 +7,8 @@ import { useAuth } from '../auth/AuthContext';
 import { RAW_DATA } from '../data/sampleData';
 import { parseHours } from '../utils/parseHours';
 import {
-  getCompensatoryStatus, isCompDateMissing, isApproved, getMonthYear,
-  getMonthSortKey, parseDate, normalizeEmployee,
+  getCompensatoryStatus, getUsageStatus, isCompDateMissing, isApproved,
+  getMonthYear, getMonthSortKey, parseDate, normalizeEmployee,
 } from '../utils/statusUtils';
 
 // Firestore collection that holds every dashboard record.
@@ -23,13 +23,31 @@ function toFirestore(raw) {
   return rest;
 }
 
+// Resolve how many comp hours a record has USED.
+//  - Prefer the explicit `hoursUsed` field (new model), clamped to [0, earned].
+//  - Fall back to the legacy model for old records that predate hoursUsed:
+//    a "used"/Yes/past compensatory date means the whole record was used.
+function resolveUsedHours(row, earned) {
+  if (row.hoursUsed !== undefined && row.hoursUsed !== null && row.hoursUsed !== '') {
+    const u = Number(row.hoursUsed);
+    if (!Number.isNaN(u)) return Math.min(Math.max(u, 0), earned);
+  }
+  return getCompensatoryStatus(row.compensatoryDate) === 'Use Time' ? earned : 0;
+}
+
 function enrichRow(row) {
+  const earnedHours = parseHours(row.totalHours);
+  const usedHours = Math.round(resolveUsedHours(row, earnedHours) * 100) / 100;
+  const remainingHours = Math.round((earnedHours - usedHours) * 100) / 100;
   return {
     ...row,
     id: row._id,
     employeeName: normalizeEmployee(row.employeeName),
-    totalHoursNumeric: parseHours(row.totalHours),
-    compensatoryStatus: getCompensatoryStatus(row.compensatoryDate),
+    totalHoursNumeric: earnedHours,
+    earnedHours,
+    usedHours,
+    remainingHours,
+    compensatoryStatus: getUsageStatus(earnedHours, usedHours),
     approved: isApproved(row.muneebApproval),
     monthYear: getMonthYear(row.date),
     monthSortKey: getMonthSortKey(row.date),
@@ -126,15 +144,16 @@ export function useDashboardData() {
   }, [allData, filters]);
 
   const kpis = useMemo(() => {
-    const totalHours = filteredData.reduce((s, r) => s + r.totalHoursNumeric, 0);
-    // Remaining = all hours where comp time has NOT been used yet.
-    const remainingHours = filteredData
-      .filter(r => r.compensatoryStatus === 'Not Use')
-      .reduce((s, r) => s + r.totalHoursNumeric, 0);
+    // Total earned comp time across all (filtered) records.
+    const totalHours = filteredData.reduce((s, r) => s + r.earnedHours, 0);
+    // Used = sum of hours consumed; Remaining = earned − used (partial-aware).
+    const usedHours = filteredData.reduce((s, r) => s + r.usedHours, 0);
+    const remainingHours = totalHours - usedHours;
     // Missing = comp date is empty/null/"—" (future dates don't count as missing).
     const missingCompCount = filteredData.filter(r => isCompDateMissing(r.compensatoryDate)).length;
     return {
       totalHours:     Math.round(totalHours     * 100) / 100,
+      usedHours:      Math.round(usedHours      * 100) / 100,
       remainingHours: Math.round(remainingHours * 100) / 100,
       missingCompCount,
     };
@@ -174,8 +193,9 @@ export function useDashboardData() {
       { name: 'Not Approved', value: filteredData.filter(r => !r.approved).length, fill: '#f87171' },
     ];
     const compData = [
-      { name: 'Use Time', value: filteredData.filter(r => r.compensatoryStatus === 'Use Time').length, fill: '#10b981' },
-      { name: 'Not Use',  value: filteredData.filter(r => r.compensatoryStatus === 'Not Use').length,  fill: '#f59e0b' },
+      { name: 'Fully Used',     value: filteredData.filter(r => r.compensatoryStatus === 'Fully Used').length,     fill: '#10b981' },
+      { name: 'Partially Used', value: filteredData.filter(r => r.compensatoryStatus === 'Partially Used').length, fill: '#0ea5e9' },
+      { name: 'Not Used',       value: filteredData.filter(r => r.compensatoryStatus === 'Not Used').length,       fill: '#f59e0b' },
     ];
     return { employeeHours, monthHours, dateHours, approvalData, compData };
   }, [filteredData]);

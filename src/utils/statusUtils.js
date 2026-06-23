@@ -92,6 +92,22 @@ export function getCompensatoryStatus(compensatoryDate) {
   return 'Not Use';
 }
 
+/**
+ * Compensatory-time usage status, based on how much of the EARNED comp time
+ * has been used:
+ *   - 'Not Used'       → nothing used yet (fully available)
+ *   - 'Partially Used' → some used, some remaining
+ *   - 'Fully Used'     → remaining has reached 0
+ */
+export function getUsageStatus(earned, used) {
+  const e = Number(earned) || 0;
+  const u = Number(used) || 0;
+  if (e <= 0) return 'Not Used';
+  if (u <= 0) return 'Not Used';
+  if (u >= e) return 'Fully Used';
+  return 'Partially Used';
+}
+
 /** True when the comp date field is empty / missing / "—". */
 export function isCompDateMissing(compensatoryDate) {
   if (!compensatoryDate) return true;
@@ -101,9 +117,12 @@ export function isCompDateMissing(compensatoryDate) {
 
 export function getStatusColor(status) {
   switch (status) {
-    case 'Use Time': return { bg: 'bg-emerald-100', text: 'text-emerald-700', border: 'border-emerald-200' };
-    case 'Not Use':  return { bg: 'bg-amber-100',   text: 'text-amber-700',   border: 'border-amber-200' };
-    default:         return { bg: 'bg-gray-100',    text: 'text-gray-600',    border: 'border-gray-200' };
+    case 'Fully Used':
+    case 'Use Time':     return { bg: 'bg-emerald-100', text: 'text-emerald-700', border: 'border-emerald-200' };
+    case 'Partially Used': return { bg: 'bg-sky-100',   text: 'text-sky-700',     border: 'border-sky-200' };
+    case 'Not Used':
+    case 'Not Use':      return { bg: 'bg-amber-100',   text: 'text-amber-700',   border: 'border-amber-200' };
+    default:             return { bg: 'bg-gray-100',    text: 'text-gray-600',    border: 'border-gray-200' };
   }
 }
 

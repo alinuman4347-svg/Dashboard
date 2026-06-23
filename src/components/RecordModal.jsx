@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { X, Clock } from 'lucide-react';
-import { getCompensatoryStatus, getStatusColor } from '../utils/statusUtils';
+import { getUsageStatus, getStatusColor } from '../utils/statusUtils';
+import { parseHours, formatHours } from '../utils/parseHours';
 
 // Convert "8:00 PM" / "20:30" / "8:30" → "HH:MM" for <input type="time">.
 function to24h(raw) {
@@ -76,7 +77,8 @@ export default function RecordModal({ record, employees, onSave, onClose }) {
     endTime:          isEdit ? to24h(record.endTime)          : '',
     totalHours:       isEdit ? (record.totalHours || '')      : '',
     muneebApproval:   isEdit ? (record.muneebApproval || 'Yes') : 'Yes',
-    compGiven:        isEdit ? compIsYes                      : false,
+    // Hours of the earned comp time already used (partial allowed).
+    hoursUsed:        isEdit ? String(record.usedHours ?? 0)  : '0',
     compensatoryDate: isEdit && !compIsYes ? toInputDate(record.compensatoryDate) : '',
   });
 
@@ -90,11 +92,17 @@ export default function RecordModal({ record, employees, onSave, onClose }) {
     if (calc) setForm(f => ({ ...f, totalHours: calc }));
   }, [form.startTime, form.endTime, hoursLocked]);
 
-  // Computed status preview — updates in real time as comp fields change.
-  const computedStatus = useMemo(() => {
-    if (form.compGiven) return 'Use Time';
-    return getCompensatoryStatus(form.compensatoryDate);
-  }, [form.compGiven, form.compensatoryDate]);
+  // Earned / used / remaining — recomputed live as the form changes.
+  const earnedHours = useMemo(() => parseHours(form.totalHours), [form.totalHours]);
+  const usedHours = Math.max(0, Number(form.hoursUsed) || 0);
+  const usedExceeds = usedHours > earnedHours + 1e-9;
+  const remainingHours = Math.max(0, Math.round((earnedHours - usedHours) * 100) / 100);
+
+  // Computed status preview — updates in real time as hours used changes.
+  const computedStatus = useMemo(
+    () => getUsageStatus(earnedHours, Math.min(usedHours, earnedHours)),
+    [earnedHours, usedHours]
+  );
 
   const statusColors = getStatusColor(computedStatus);
 
@@ -103,6 +111,9 @@ export default function RecordModal({ record, employees, onSave, onClose }) {
   function handleSubmit(e) {
     e.preventDefault();
     if (!form.date || !form.employeeName.trim()) return;
+    // Validation: used can never exceed earned. Clamp defensively on save.
+    if (usedExceeds) return;
+    const safeUsed = Math.min(usedHours, earnedHours);
     onSave({
       date:             form.date,
       employeeName:     form.employeeName.trim(),
@@ -110,7 +121,8 @@ export default function RecordModal({ record, employees, onSave, onClose }) {
       endTime:          form.endTime,
       totalHours:       form.totalHours || '0',
       muneebApproval:   form.muneebApproval,
-      compensatoryDate: form.compGiven ? 'Yes' : form.compensatoryDate,
+      hoursUsed:        safeUsed,
+      compensatoryDate: form.compensatoryDate,
     });
   }
 
@@ -206,23 +218,55 @@ export default function RecordModal({ record, employees, onSave, onClose }) {
             </div>
           </div>
 
-          {/* Compensatory Date */}
+          {/* Compensatory time usage */}
           <div className="space-y-2">
-            <label className={LABEL}>Compensatory Date</label>
-            <label className="flex items-center gap-2 cursor-pointer select-none">
-              <input type="checkbox" checked={form.compGiven}
-                onChange={e => { set('compGiven', e.target.checked); if (e.target.checked) set('compensatoryDate', ''); }}
-                className="w-4 h-4 rounded border-gray-300 accent-cyan-600"
-              />
-              <span className="text-sm text-gray-700">Comp. day already given — mark as Use Time</span>
-            </label>
-            {!form.compGiven && (
-              <input type="date" value={form.compensatoryDate}
-                onChange={e => set('compensatoryDate', e.target.value)}
-                className={FIELD}
-                placeholder="Leave blank if not scheduled"
-              />
-            )}
+            <label className={LABEL}>Compensatory Time</label>
+
+            {/* Earned / Used / Remaining summary */}
+            <div className="grid grid-cols-3 gap-2">
+              <div className="rounded-lg bg-cyan-50 border border-cyan-100 px-2 py-1.5 text-center">
+                <div className="text-[10px] font-semibold text-cyan-700 uppercase tracking-wide">Earned</div>
+                <div className="text-sm font-bold text-cyan-800">{formatHours(earnedHours)}</div>
+              </div>
+              <div className="rounded-lg bg-emerald-50 border border-emerald-100 px-2 py-1.5 text-center">
+                <div className="text-[10px] font-semibold text-emerald-700 uppercase tracking-wide">Used</div>
+                <div className="text-sm font-bold text-emerald-800">{formatHours(Math.min(usedHours, earnedHours))}</div>
+              </div>
+              <div className="rounded-lg bg-blue-50 border border-blue-100 px-2 py-1.5 text-center">
+                <div className="text-[10px] font-semibold text-blue-700 uppercase tracking-wide">Remaining</div>
+                <div className="text-sm font-bold text-blue-800">{formatHours(remainingHours)}</div>
+              </div>
+            </div>
+
+            {/* Hours used input */}
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Hours Used</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number" min="0" max={earnedHours} step="0.25"
+                  value={form.hoursUsed}
+                  onChange={e => set('hoursUsed', e.target.value)}
+                  className={`${FIELD} ${usedExceeds ? 'border-red-300 focus:ring-red-400' : ''}`}
+                />
+                <button type="button"
+                  onClick={() => set('hoursUsed', String(earnedHours))}
+                  className="whitespace-nowrap text-xs font-semibold text-cyan-600 hover:text-cyan-700 border border-cyan-200 rounded-lg px-2.5 py-2">
+                  Use all
+                </button>
+              </div>
+              {usedExceeds && (
+                <p className="text-xs text-red-500 mt-1">
+                  Hours used cannot exceed earned ({formatHours(earnedHours)}).
+                </p>
+              )}
+            </div>
+
+            {/* Optional date the comp time was used */}
+            <input type="date" value={form.compensatoryDate}
+              onChange={e => set('compensatoryDate', e.target.value)}
+              className={FIELD}
+              placeholder="Date comp time used (optional)"
+            />
           </div>
 
           {/* Status preview */}
@@ -240,7 +284,8 @@ export default function RecordModal({ record, employees, onSave, onClose }) {
               Cancel
             </button>
             <button type="submit"
-              className="flex-1 bg-cyan-600 hover:bg-cyan-700 active:bg-cyan-800 text-white rounded-lg py-2.5 text-sm font-semibold transition-colors">
+              disabled={usedExceeds}
+              className="flex-1 bg-cyan-600 hover:bg-cyan-700 active:bg-cyan-800 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg py-2.5 text-sm font-semibold transition-colors">
               {isEdit ? 'Save Changes' : 'Add Record'}
             </button>
           </div>

@@ -1,4 +1,4 @@
-import { Clock, Timer } from 'lucide-react';
+import { Clock, Timer, CheckCircle2 } from 'lucide-react';
 import { useDashboardData } from './hooks/useDashboardData';
 import { formatHours } from './utils/parseHours';
 import { useAuth } from './auth/AuthContext';
@@ -27,18 +27,25 @@ export default function Dashboard() {
       <main className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
         {/* KPI Cards */}
         <section>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-4xl">
             <KPICard
               title="Total Time"
               value={formatHours(kpis.totalHours)}
-              subtitle="Total approved work time"
+              subtitle="Total compensatory time earned"
               icon={Clock}
               color="cyan"
             />
             <KPICard
+              title="Used Time"
+              value={formatHours(kpis.usedHours)}
+              subtitle="Compensatory time used"
+              icon={CheckCircle2}
+              color="emerald"
+            />
+            <KPICard
               title="Remaining Time"
               value={formatHours(kpis.remainingHours)}
-              subtitle="Time still pending"
+              subtitle="Compensatory time still available"
               icon={Timer}
               color="blue"
             />

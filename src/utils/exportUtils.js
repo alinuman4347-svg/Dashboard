@@ -1,10 +1,10 @@
 import { formatHours } from './parseHours';
-import { getCompensatoryStatus, formatDisplayDate } from './statusUtils';
+import { formatDisplayDate } from './statusUtils';
 
 export function exportToCSV(data, filename = 'weekend_work_report.csv') {
   const headers = [
     'Date', 'Employee Name', 'Start Time', 'End Time',
-    'Total Hours', 'Muneeb Approval', 'Compensatory Date', 'Status'
+    'Earned Hours', 'Used Hours', 'Remaining Hours', 'Muneeb Approval', 'Status'
   ];
 
   const rows = data.map(row => [
@@ -12,10 +12,11 @@ export function exportToCSV(data, filename = 'weekend_work_report.csv') {
     row.employeeName,
     row.startTime,
     row.endTime,
-    formatHours(row.totalHoursNumeric),
+    formatHours(row.earnedHours),
+    formatHours(row.usedHours),
+    formatHours(row.remainingHours),
     row.muneebApproval,
-    row.compensatoryDate ? formatDisplayDate(row.compensatoryDate) : '',
-    getCompensatoryStatus(row.compensatoryDate),
+    row.compensatoryStatus,
   ]);
 
   const csv = [headers, ...rows]

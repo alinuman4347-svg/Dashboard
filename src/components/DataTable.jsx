@@ -36,9 +36,10 @@ const COLUMNS = [
   { key: 'employeeName',      label: 'Employee' },
   { key: 'startTime',         label: 'Start' },
   { key: 'endTime',           label: 'End' },
-  { key: 'totalHoursNumeric', label: 'Hours' },
+  { key: 'earnedHours',       label: 'Earned' },
+  { key: 'usedHours',         label: 'Used' },
+  { key: 'remainingHours',    label: 'Remaining' },
   { key: 'muneebApproval',    label: 'Approval' },
-  { key: 'compensatoryDate',  label: 'Comp. Date' },
   { key: 'compensatoryStatus',label: 'Status' },
 ];
 
@@ -194,18 +195,19 @@ export default function DataTable({
                   <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{row.startTime || '—'}</td>
                   <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{row.endTime || '—'}</td>
                   <td className="px-4 py-3 whitespace-nowrap">
-                    <span className="font-bold text-cyan-700">{formatHours(row.totalHoursNumeric)}</span>
+                    <span className="font-bold text-cyan-700">{formatHours(row.earnedHours)}</span>
                     <span className="text-gray-400 text-xs ml-1">({row.totalHours})</span>
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap font-medium text-gray-700">
+                    {formatHours(row.usedHours)}
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <span className={`font-bold ${row.remainingHours > 0 ? 'text-blue-700' : 'text-gray-400'}`}>
+                      {formatHours(row.remainingHours)}
+                    </span>
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap">
                     <ApprovalBadge approval={row.muneebApproval} />
-                  </td>
-                  <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
-                    {row.compensatoryDate
-                      ? (String(row.compensatoryDate).trim().toLowerCase() === 'yes'
-                          ? <span className="text-emerald-600 font-medium text-xs">Given</span>
-                          : formatDisplayDate(row.compensatoryDate))
-                      : <span className="text-gray-400">—</span>}
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap">
                     <StatusBadge status={row.compensatoryStatus} />
