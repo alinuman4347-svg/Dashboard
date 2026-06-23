@@ -208,7 +208,7 @@ export function useDashboardData() {
       console.log('[Firebase] Record added:', ref.id);
     } catch (err) {
       console.error('[Firebase] Failed to add record:', err);
-      alert('Could not save the new record to Firebase. Check the console for details.');
+      alert(`Could not save to Firebase.\n\nError: ${err?.code || err?.message || err}`);
     }
   }, []);
 
