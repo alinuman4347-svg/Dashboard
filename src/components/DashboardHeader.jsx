@@ -1,7 +1,7 @@
-import { Download, Printer, RefreshCw } from 'lucide-react';
+import { Download, Printer, RefreshCw, ShieldCheck, Eye, LogOut } from 'lucide-react';
 import { exportToCSV, printReport } from '../utils/exportUtils';
 
-export default function DashboardHeader({ data }) {
+export default function DashboardHeader({ data, isAdmin, userEmail, onLogout }) {
   return (
     <header className="bg-gradient-to-r from-cyan-600 to-blue-700 text-white shadow-lg no-print">
       <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
@@ -12,7 +12,24 @@ export default function DashboardHeader({ data }) {
             </svg>
           </div>
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Andrew Team</h1>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Andrew Team</h1>
+              {/* Current role chip */}
+              <span
+                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${
+                  isAdmin ? 'bg-white/20 text-white' : 'bg-amber-400/90 text-amber-950'
+                }`}
+              >
+                {isAdmin ? <ShieldCheck className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                {isAdmin ? 'Admin' : 'Viewer'}
+              </span>
+              {/* View Only badge for viewers */}
+              {!isAdmin && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-white/15 text-white border border-white/30">
+                  View Only Mode
+                </span>
+              )}
+            </div>
             <p className="text-cyan-100 text-sm font-medium">Weekend Work Hours Dashboard</p>
           </div>
         </div>
@@ -37,6 +54,18 @@ export default function DashboardHeader({ data }) {
             <span className="hidden sm:inline">Last updated:</span>
             <span className="font-medium">{new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
           </div>
+          {userEmail && (
+            <span className="hidden md:inline text-cyan-100 text-xs px-1 max-w-[12rem] truncate" title={userEmail}>
+              {userEmail}
+            </span>
+          )}
+          <button
+            onClick={onLogout}
+            className="flex items-center gap-1.5 bg-white/15 hover:bg-white/25 transition-colors px-3 py-2 rounded-lg text-sm font-medium"
+          >
+            <LogOut className="w-4 h-4" />
+            <span className="hidden sm:inline">Sign Out</span>
+          </button>
         </div>
       </div>
     </header>

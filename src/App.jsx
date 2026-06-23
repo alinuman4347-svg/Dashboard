@@ -1,64 +1,21 @@
-import { Clock, Timer } from 'lucide-react';
-import { useDashboardData } from './hooks/useDashboardData';
-import { formatHours } from './utils/parseHours';
-import DashboardHeader from './components/DashboardHeader';
-import KPICard from './components/KPICard';
-import Filters from './components/Filters';
-import DataTable from './components/DataTable';
+import { Loader2 } from 'lucide-react';
+import { useAuth } from './auth/AuthContext';
+import Login from './components/Login';
+import Dashboard from './Dashboard';
 
 export default function App() {
-  const {
-    filteredData, kpis, meta,
-    filters, setFilters,
-    addRecord, updateRecord, deleteRecord, resetData,
-  } = useDashboardData();
+  const { user, loading } = useAuth();
 
-  return (
-    <div className="min-h-screen bg-slate-50">
-      <DashboardHeader data={filteredData} />
+  // While Firebase resolves the auth state, avoid flashing the login screen.
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <Loader2 className="w-6 h-6 text-cyan-600 animate-spin" />
+      </div>
+    );
+  }
 
-      <main className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-        {/* KPI Cards */}
-        <section>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl">
-            <KPICard
-              title="Total Time"
-              value={formatHours(kpis.totalHours)}
-              subtitle="Total approved work time"
-              icon={Clock}
-              color="cyan"
-            />
-            <KPICard
-              title="Remaining Time"
-              value={formatHours(kpis.remainingHours)}
-              subtitle="Time still pending"
-              icon={Timer}
-              color="blue"
-            />
-          </div>
-        </section>
-
-        {/* Filters */}
-        <Filters filters={filters} setFilters={setFilters} meta={meta} />
-
-        {/* All Records Table */}
-        <section>
-          <DataTable
-            data={filteredData}
-            filters={filters}
-            setFilters={setFilters}
-            onAdd={addRecord}
-            onEdit={updateRecord}
-            onDelete={deleteRecord}
-            onReset={resetData}
-            employees={meta.employees}
-          />
-        </section>
-
-        <footer className="text-center text-xs text-gray-400 pb-4 no-print">
-          Andrew Team &ndash; Weekend Work Hours Dashboard &bull; Data sourced from internal records
-        </footer>
-      </main>
-    </div>
-  );
+  // Not signed in → login screen. Signed in → the full dashboard (which
+  // adapts its controls to the user's role).
+  return user ? <Dashboard /> : <Login />;
 }

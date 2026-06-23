@@ -45,7 +45,7 @@ const COLUMNS = [
 export default function DataTable({
   data, filters, setFilters,
   onAdd, onEdit, onDelete, onReset,
-  employees,
+  employees, isAdmin = false,
 }) {
   const [sortCol, setSortCol] = useState('date');
   const [sortDir, setSortDir] = useState('desc');
@@ -111,19 +111,24 @@ export default function DataTable({
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 border-b border-gray-100 no-print">
           <div className="flex items-center gap-2 flex-wrap">
             <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wider">All Records</h3>
-            <button
-              onClick={openAdd}
-              className="flex items-center gap-1.5 bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
-            >
-              <Plus className="w-3.5 h-3.5" /> Add Record
-            </button>
-            <button
-              onClick={onReset}
-              title="Reset to original sample data"
-              className="flex items-center gap-1.5 border border-gray-200 text-gray-500 hover:bg-gray-50 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
-            >
-              <RotateCcw className="w-3.5 h-3.5" /> Reset Data
-            </button>
+            {/* Write actions are admin-only. Viewers don't see these at all. */}
+            {isAdmin && (
+              <>
+                <button
+                  onClick={openAdd}
+                  className="flex items-center gap-1.5 bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Add Record
+                </button>
+                <button
+                  onClick={onReset}
+                  title="Reset to original sample data"
+                  className="flex items-center gap-1.5 border border-gray-200 text-gray-500 hover:bg-gray-50 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" /> Reset Data
+                </button>
+              </>
+            )}
           </div>
 
           <div className="flex items-center gap-2 w-full sm:w-auto">
@@ -164,16 +169,18 @@ export default function DataTable({
                     </div>
                   </th>
                 ))}
-                {/* Actions column — not sortable */}
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
-                  Actions
-                </th>
+                {/* Actions column — admin only, not sortable */}
+                {isAdmin && (
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                    Actions
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               {paginated.length === 0 ? (
                 <tr>
-                  <td colSpan={COLUMNS.length + 1} className="px-4 py-12 text-center text-gray-400 text-sm">
+                  <td colSpan={COLUMNS.length + (isAdmin ? 1 : 0)} className="px-4 py-12 text-center text-gray-400 text-sm">
                     No records match your filters.
                   </td>
                 </tr>
@@ -203,25 +210,27 @@ export default function DataTable({
                   <td className="px-4 py-3 whitespace-nowrap">
                     <StatusBadge status={row.compensatoryStatus} />
                   </td>
-                  {/* Edit / Delete */}
-                  <td className="px-4 py-3 whitespace-nowrap no-print">
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => openEdit(row)}
-                        title="Edit record"
-                        className="p-1.5 rounded-lg text-gray-400 hover:text-cyan-600 hover:bg-cyan-50 transition-colors"
-                      >
-                        <Pencil className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(row)}
-                        title="Delete record"
-                        className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </td>
+                  {/* Edit / Delete — admin only */}
+                  {isAdmin && (
+                    <td className="px-4 py-3 whitespace-nowrap no-print">
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => openEdit(row)}
+                          title="Edit record"
+                          className="p-1.5 rounded-lg text-gray-400 hover:text-cyan-600 hover:bg-cyan-50 transition-colors"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(row)}
+                          title="Delete record"
+                          className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>

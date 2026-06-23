@@ -3,6 +3,7 @@ import {
   collection, onSnapshot, addDoc, setDoc, deleteDoc, doc, getDocs, writeBatch,
 } from 'firebase/firestore';
 import { db } from '../firebase';
+import { useAuth } from '../auth/AuthContext';
 import { RAW_DATA } from '../data/sampleData';
 import { parseHours } from '../utils/parseHours';
 import {
@@ -37,6 +38,7 @@ function enrichRow(row) {
 }
 
 export function useDashboardData() {
+  const { user, isAdmin } = useAuth();
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -47,12 +49,20 @@ export function useDashboardData() {
   // add/update/delete writes to Firestore, and this listener pushes the new
   // state back into React — so the UI always mirrors what's saved online.
   useEffect(() => {
+    // Reads require an authenticated user (enforced by Firestore rules too).
+    if (!user) {
+      setRecords([]);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
     const col = collection(db, COLLECTION);
     const unsubscribe = onSnapshot(
       col,
       async (snapshot) => {
         // First load with an empty collection → seed the sample data once.
-        if (snapshot.empty && !seededRef.current) {
+        // Only admins may write, so viewers never attempt to seed.
+        if (snapshot.empty && !seededRef.current && isAdmin) {
           seededRef.current = true;
           try {
             console.log('[Firebase] No records found — seeding sample data…');
@@ -80,7 +90,7 @@ export function useDashboardData() {
       }
     );
     return unsubscribe;
-  }, []);
+  }, [user, isAdmin]);
 
   const allData = useMemo(() => records.map(enrichRow), [records]);
 
@@ -200,9 +210,22 @@ export function useDashboardData() {
     return { employees, months };
   }, [allData]);
 
+  // Front-end permission gate — verified before every write. This is defense
+  // in depth: the Firestore security rules independently block non-admin
+  // writes on the backend, so a viewer is denied even via the console/devtools.
+  function ensureAdmin(action) {
+    if (!isAdmin) {
+      console.warn(`[Auth] Permission denied: viewers cannot ${action}.`);
+      alert('You have view-only access. This action is not permitted.');
+      return false;
+    }
+    return true;
+  }
+
   // CRUD — each writes to Firestore. The onSnapshot listener above then pushes
   // the updated collection back into state, so the table/KPIs refresh automatically.
   const addRecord = useCallback(async (raw) => {
+    if (!ensureAdmin('add records')) return;
     try {
       const ref = await addDoc(collection(db, COLLECTION), toFirestore(raw));
       console.log('[Firebase] Record added:', ref.id);
@@ -210,9 +233,10 @@ export function useDashboardData() {
       console.error('[Firebase] Failed to add record:', err);
       alert(`Could not save to Firebase.\n\nError: ${err?.code || err?.message || err}`);
     }
-  }, []);
+  }, [isAdmin]);
 
   const updateRecord = useCallback(async (id, raw) => {
+    if (!ensureAdmin('edit records')) return;
     try {
       await setDoc(doc(db, COLLECTION, String(id)), toFirestore(raw));
       console.log('[Firebase] Record updated:', id);
@@ -220,9 +244,10 @@ export function useDashboardData() {
       console.error('[Firebase] Failed to update record:', err);
       alert('Could not update the record in Firebase. Check the console for details.');
     }
-  }, []);
+  }, [isAdmin]);
 
   const deleteRecord = useCallback(async (id) => {
+    if (!ensureAdmin('delete records')) return;
     try {
       await deleteDoc(doc(db, COLLECTION, String(id)));
       console.log('[Firebase] Record deleted:', id);
@@ -230,9 +255,10 @@ export function useDashboardData() {
       console.error('[Firebase] Failed to delete record:', err);
       alert('Could not delete the record in Firebase. Check the console for details.');
     }
-  }, []);
+  }, [isAdmin]);
 
   const resetData = useCallback(async () => {
+    if (!ensureAdmin('reset data')) return;
     if (!window.confirm('Reset all data to the original sample records? This cannot be undone.')) return;
     try {
       const col = collection(db, COLLECTION);
@@ -247,11 +273,11 @@ export function useDashboardData() {
       console.error('[Firebase] Failed to reset data:', err);
       alert('Could not reset data in Firebase. Check the console for details.');
     }
-  }, []);
+  }, [isAdmin]);
 
   return {
     filteredData, kpis, chartData, insights, meta,
-    filters, setFilters, loading, error,
+    filters, setFilters, loading, error, isAdmin,
     addRecord, updateRecord, deleteRecord, resetData,
   };
 }
