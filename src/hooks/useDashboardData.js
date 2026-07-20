@@ -247,9 +247,19 @@ export function useDashboardData() {
   // the updated collection back into state, so the table/KPIs refresh automatically.
   const addRecord = useCallback(async (raw) => {
     if (!ensureAdmin('add records')) return;
+    const rows = Array.isArray(raw) ? raw : [raw];
     try {
-      const ref = await addDoc(collection(db, COLLECTION), toFirestore(raw));
-      console.log('[Firebase] Record added:', ref.id);
+      if (rows.length === 1) {
+        const ref = await addDoc(collection(db, COLLECTION), toFirestore(rows[0]));
+        console.log('[Firebase] Record added:', ref.id);
+      } else {
+        // Multi-employee add: one record per employee, written atomically.
+        const col = collection(db, COLLECTION);
+        const batch = writeBatch(db);
+        rows.forEach(row => batch.set(doc(col), toFirestore(row)));
+        await batch.commit();
+        console.log(`[Firebase] ${rows.length} records added.`);
+      }
     } catch (err) {
       console.error('[Firebase] Failed to add record:', err);
       alert(`Could not save to Firebase.\n\nError: ${err?.code || err?.message || err}`);

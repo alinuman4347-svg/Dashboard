@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { X, Clock } from 'lucide-react';
 import { getUsageStatus, getStatusColor } from '../utils/statusUtils';
 import { parseHours, formatMinutes } from '../utils/parseHours';
+import EmployeeMultiSelect from './EmployeeMultiSelect';
 
 // Convert "8:00 PM" / "20:30" / "8:30" → "HH:MM" for <input type="time">.
 function to24h(raw) {
@@ -72,7 +73,7 @@ export default function RecordModal({ record, employees, onSave, onClose }) {
 
   const [form, setForm] = useState({
     date:             isEdit ? toInputDate(record.date)       : '',
-    employeeName:     isEdit ? (record.employeeName || '')    : '',
+    employeeNames:    isEdit ? (record.employeeName ? [record.employeeName] : []) : [],
     startTime:        isEdit ? to24h(record.startTime)        : '',
     endTime:          isEdit ? to24h(record.endTime)          : '',
     totalHours:       isEdit ? (record.totalHours || '')      : '',
@@ -111,19 +112,22 @@ export default function RecordModal({ record, employees, onSave, onClose }) {
 
   function handleSubmit(e) {
     e.preventDefault();
-    if (!form.date || !form.employeeName.trim()) return;
+    if (!form.date || form.employeeNames.length === 0) return;
     // Validation: used can never exceed earned. Clamp defensively on save.
     if (usedExceeds) return;
-    onSave({
+    const base = {
       date:             form.date,
-      employeeName:     form.employeeName.trim(),
       startTime:        form.startTime,
       endTime:          form.endTime,
       totalHours:       form.totalHours || '0',
       muneebApproval:   form.muneebApproval,
       minutesUsed:      Math.min(usedMinutes, earnedMinutes),
       compensatoryDate: form.compensatoryDate,
-    });
+    };
+    // Editing always targets the single existing record; adding can fan out
+    // into one record per selected employee (handled by the caller).
+    if (isEdit) onSave({ ...base, employeeName: form.employeeNames[0] });
+    else onSave({ ...base, employeeNames: form.employeeNames });
   }
 
   return (
@@ -153,17 +157,16 @@ export default function RecordModal({ record, employees, onSave, onClose }) {
                 className={FIELD} />
             </div>
             <div>
-              <label className={LABEL}>Employee <span className="text-red-400">*</span></label>
-              <input
-                list="emp-datalist" required
-                value={form.employeeName}
-                onChange={e => set('employeeName', e.target.value)}
-                placeholder="Select or type name"
-                className={FIELD}
+              <label className={LABEL}>
+                Employee{isEdit ? '' : ' (one or more)'} <span className="text-red-400">*</span>
+              </label>
+              <EmployeeMultiSelect
+                employees={employees}
+                selected={form.employeeNames}
+                onChange={names => set('employeeNames', names)}
+                multiple={!isEdit}
+                placeholder="Select or search…"
               />
-              <datalist id="emp-datalist">
-                {employees.map(e => <option key={e} value={e} />)}
-              </datalist>
             </div>
           </div>
 
@@ -296,7 +299,7 @@ export default function RecordModal({ record, employees, onSave, onClose }) {
               Cancel
             </button>
             <button type="submit"
-              disabled={usedExceeds}
+              disabled={usedExceeds || form.employeeNames.length === 0}
               className="flex-1 bg-cyan-600 hover:bg-cyan-700 active:bg-cyan-800 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg py-2.5 text-sm font-semibold transition-colors">
               {isEdit ? 'Save Changes' : 'Add Record'}
             </button>

@@ -85,10 +85,18 @@ export default function DataTable({
     }
   }
 
-  function handleSave(raw) {
-    if (modal.record) onEdit(modal.record.id, raw);
-    else onAdd(raw);
+  async function handleSave(raw) {
+    if (modal.record) {
+      onEdit(modal.record.id, raw);
+      setModal({ open: false, record: null });
+      return;
+    }
+    const { employeeNames, ...rest } = raw;
+    const names = employeeNames || [];
+    const records = names.map(employeeName => ({ ...rest, employeeName }));
+    await onAdd(records.length === 1 ? records[0] : records);
     setModal({ open: false, record: null });
+    if (names.length > 1) alert(`${names.length} records created successfully.`);
   }
 
   function handleSearch(val) {
