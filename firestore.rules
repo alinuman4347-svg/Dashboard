@@ -23,6 +23,12 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
+    // Employee roster (Manage Employees): same read/write split as records.
+    match /employees/{id} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
     // Everything else is denied by default.
   }
 }

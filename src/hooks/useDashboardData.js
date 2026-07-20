@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import {
-  collection, onSnapshot, addDoc, setDoc, deleteDoc, doc, getDocs, writeBatch,
+  collection, onSnapshot, addDoc, setDoc, updateDoc, deleteDoc, doc, getDocs, query, where, writeBatch,
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../auth/AuthContext';
@@ -13,6 +13,8 @@ import {
 
 // Firestore collection that holds every dashboard record.
 const COLLECTION = 'records';
+// Firestore collection that holds the managed employee roster (Manage Employees).
+const EMPLOYEES_COLLECTION = 'employees';
 
 // Strip the local-only id fields before writing a record to Firestore — the
 // document id IS the identity, so we never store it inside the document.
@@ -118,6 +120,57 @@ export function useDashboardData() {
   }, [user, isAdmin]);
 
   const allData = useMemo(() => records.map(enrichRow), [records]);
+
+  // Employee roster (Manage Employees) — a second collection, independent of
+  // records, so an employee can exist (or be deactivated) before/after any
+  // timesheet entry references them.
+  const [employeeRoster, setEmployeeRoster] = useState([]);
+  const [rosterLoaded, setRosterLoaded] = useState(false);
+  const rosterSeededRef = useRef(false);
+
+  useEffect(() => {
+    if (!user) {
+      setEmployeeRoster([]);
+      setRosterLoaded(false);
+      return;
+    }
+    const col = collection(db, EMPLOYEES_COLLECTION);
+    const unsubscribe = onSnapshot(
+      col,
+      (snapshot) => {
+        setEmployeeRoster(snapshot.docs.map((d) => ({ id: d.id, ...d.data() })));
+        setRosterLoaded(true);
+      },
+      (err) => {
+        console.error('[Firebase] Failed to load employee roster:', err);
+        setRosterLoaded(true);
+      }
+    );
+    return unsubscribe;
+  }, [user]);
+
+  // One-time migration: if the roster collection is empty but records already
+  // reference employee names, seed the roster from those names (all active)
+  // so existing dashboards get a populated Manage Employees list for free.
+  useEffect(() => {
+    if (!isAdmin || rosterSeededRef.current) return;
+    if (!rosterLoaded || loading) return;
+    if (employeeRoster.length > 0) { rosterSeededRef.current = true; return; }
+    const names = [...new Set(allData.map((r) => r.employeeName))].filter(Boolean);
+    if (names.length === 0) return;
+    rosterSeededRef.current = true;
+    (async () => {
+      try {
+        const col = collection(db, EMPLOYEES_COLLECTION);
+        const batch = writeBatch(db);
+        names.forEach((name) => batch.set(doc(col), { name, active: true }));
+        await batch.commit();
+        console.log(`[Firebase] Seeded employee roster with ${names.length} name(s).`);
+      } catch (err) {
+        console.error('[Firebase] Failed to seed employee roster:', err);
+      }
+    })();
+  }, [isAdmin, rosterLoaded, loading, employeeRoster, allData]);
 
   const [filters, setFilters] = useState({
     employee: '', dateFrom: '', dateTo: '', approval: '', month: '', search: '',
@@ -260,11 +313,21 @@ export function useDashboardData() {
         await batch.commit();
         console.log(`[Firebase] ${rows.length} records added.`);
       }
+      // Keep the employee roster in sync with any brand-new name typed into
+      // the Employee field (RecordModal's "Add as new employee" option).
+      const newNames = [...new Set(rows.map(r => normalizeEmployee(r.employeeName)).filter(Boolean))]
+        .filter(name => !employeeRoster.some(e => e.name.toLowerCase() === name.toLowerCase()));
+      if (newNames.length > 0) {
+        const rosterCol = collection(db, EMPLOYEES_COLLECTION);
+        const rosterBatch = writeBatch(db);
+        newNames.forEach(name => rosterBatch.set(doc(rosterCol), { name, active: true }));
+        await rosterBatch.commit();
+      }
     } catch (err) {
       console.error('[Firebase] Failed to add record:', err);
       alert(`Could not save to Firebase.\n\nError: ${err?.code || err?.message || err}`);
     }
-  }, [isAdmin]);
+  }, [isAdmin, employeeRoster]);
 
   const updateRecord = useCallback(async (id, raw) => {
     if (!ensureAdmin('edit records')) return;
@@ -306,9 +369,92 @@ export function useDashboardData() {
     }
   }, [isAdmin]);
 
+  // Employee roster CRUD — Manage Employees. Each returns true/false so the
+  // modal knows whether to clear its input / exit edit mode.
+  const addEmployee = useCallback(async (rawName) => {
+    if (!ensureAdmin('add employees')) return false;
+    const name = normalizeEmployee(rawName);
+    if (!name) return false;
+    if (employeeRoster.some(e => e.name.toLowerCase() === name.toLowerCase())) {
+      alert(`"${name}" is already in the employee list.`);
+      return false;
+    }
+    try {
+      await addDoc(collection(db, EMPLOYEES_COLLECTION), { name, active: true });
+      return true;
+    } catch (err) {
+      console.error('[Firebase] Failed to add employee:', err);
+      alert(`Could not add employee.\n\nError: ${err?.code || err?.message || err}`);
+      return false;
+    }
+  }, [isAdmin, employeeRoster]);
+
+  const renameEmployee = useCallback(async (id, oldName, rawNewName) => {
+    if (!ensureAdmin('rename employees')) return false;
+    const newName = normalizeEmployee(rawNewName);
+    if (!newName || newName === oldName) return false;
+    if (employeeRoster.some(e => e.id !== id && e.name.toLowerCase() === newName.toLowerCase())) {
+      alert(`"${newName}" is already in the employee list.`);
+      return false;
+    }
+    try {
+      await updateDoc(doc(db, EMPLOYEES_COLLECTION, id), { name: newName });
+      // Cascade the rename onto every existing record so past entries stay
+      // attributed to the same person under their new name.
+      const matches = await getDocs(query(collection(db, COLLECTION), where('employeeName', '==', oldName)));
+      for (let i = 0; i < matches.docs.length; i += 450) {
+        const batch = writeBatch(db);
+        matches.docs.slice(i, i + 450).forEach(d => batch.update(d.ref, { employeeName: newName }));
+        await batch.commit();
+      }
+      console.log(`[Firebase] Renamed employee "${oldName}" -> "${newName}" (${matches.docs.length} record(s) updated).`);
+      return true;
+    } catch (err) {
+      console.error('[Firebase] Failed to rename employee:', err);
+      alert(`Could not rename employee.\n\nError: ${err?.code || err?.message || err}`);
+      return false;
+    }
+  }, [isAdmin, employeeRoster]);
+
+  const removeEmployee = useCallback(async (id, name) => {
+    if (!ensureAdmin('remove employees')) return false;
+    try {
+      await deleteDoc(doc(db, EMPLOYEES_COLLECTION, id));
+      console.log(`[Firebase] Removed employee "${name}" from the roster.`);
+      return true;
+    } catch (err) {
+      console.error('[Firebase] Failed to remove employee:', err);
+      alert(`Could not remove employee.\n\nError: ${err?.code || err?.message || err}`);
+      return false;
+    }
+  }, [isAdmin]);
+
+  const setEmployeeActive = useCallback(async (id, active) => {
+    if (!ensureAdmin('update employee status')) return false;
+    try {
+      await updateDoc(doc(db, EMPLOYEES_COLLECTION, id), { active });
+      return true;
+    } catch (err) {
+      console.error('[Firebase] Failed to update employee status:', err);
+      alert(`Could not update employee status.\n\nError: ${err?.code || err?.message || err}`);
+      return false;
+    }
+  }, [isAdmin]);
+
+  // Names available when adding a new record: active roster entries, plus any
+  // record-only name the roster hasn't classified yet (e.g. seeding in flight).
+  const activeEmployeeNames = useMemo(() => {
+    const rosterNames = new Set(employeeRoster.map(e => e.name));
+    const active = employeeRoster.filter(e => e.active !== false).map(e => e.name);
+    const unclassified = meta.employees.filter(n => !rosterNames.has(n));
+    return [...new Set([...active, ...unclassified])].sort();
+  }, [employeeRoster, meta.employees]);
+
   return {
     filteredData, kpis, chartData, insights, meta,
     filters, setFilters, loading, error, isAdmin,
     addRecord, updateRecord, deleteRecord, resetData,
+    employeeRoster, activeEmployeeNames,
+    addEmployee, renameEmployee, removeEmployee, setEmployeeActive,
   };
 }

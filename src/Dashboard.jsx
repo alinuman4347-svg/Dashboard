@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Clock, Timer, CheckCircle2 } from 'lucide-react';
 import { useDashboardData } from './hooks/useDashboardData';
 import { formatMinutes } from './utils/parseHours';
@@ -6,6 +7,7 @@ import DashboardHeader from './components/DashboardHeader';
 import KPICard from './components/KPICard';
 import Filters from './components/Filters';
 import DataTable from './components/DataTable';
+import EmployeeManagementModal from './components/EmployeeManagementModal';
 
 export default function Dashboard() {
   const { isAdmin, user, logout } = useAuth();
@@ -13,7 +15,10 @@ export default function Dashboard() {
     filteredData, kpis, meta,
     filters, setFilters,
     addRecord, updateRecord, deleteRecord, resetData,
+    employeeRoster, activeEmployeeNames,
+    addEmployee, renameEmployee, removeEmployee, setEmployeeActive,
   } = useDashboardData();
+  const [showEmployeeManager, setShowEmployeeManager] = useState(false);
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -22,7 +27,19 @@ export default function Dashboard() {
         isAdmin={isAdmin}
         userEmail={user?.email}
         onLogout={logout}
+        onManageEmployees={() => setShowEmployeeManager(true)}
       />
+
+      {showEmployeeManager && isAdmin && (
+        <EmployeeManagementModal
+          employees={employeeRoster}
+          onAdd={addEmployee}
+          onRename={renameEmployee}
+          onRemove={removeEmployee}
+          onSetActive={setEmployeeActive}
+          onClose={() => setShowEmployeeManager(false)}
+        />
+      )}
 
       <main className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
         {/* KPI Cards */}
@@ -65,7 +82,7 @@ export default function Dashboard() {
             onEdit={updateRecord}
             onDelete={deleteRecord}
             onReset={resetData}
-            employees={meta.employees}
+            employees={activeEmployeeNames}
             isAdmin={isAdmin}
           />
         </section>

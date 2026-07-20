@@ -1,7 +1,7 @@
-import { Download, Printer, RefreshCw, ShieldCheck, Eye, LogOut } from 'lucide-react';
+import { Download, Printer, RefreshCw, ShieldCheck, Eye, LogOut, Users } from 'lucide-react';
 import { exportToCSV, printReport } from '../utils/exportUtils';
 
-export default function DashboardHeader({ data, isAdmin, userEmail, onLogout }) {
+export default function DashboardHeader({ data, isAdmin, userEmail, onLogout, onManageEmployees }) {
   return (
     <header className="bg-gradient-to-r from-cyan-600 to-blue-700 text-white shadow-lg no-print">
       <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
@@ -35,6 +35,15 @@ export default function DashboardHeader({ data, isAdmin, userEmail, onLogout }) 
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          {isAdmin && (
+            <button
+              onClick={onManageEmployees}
+              className="flex items-center gap-1.5 bg-white/15 hover:bg-white/25 transition-colors px-3 py-2 rounded-lg text-sm font-medium"
+            >
+              <Users className="w-4 h-4" />
+              <span className="hidden sm:inline">Manage Employees</span>
+            </button>
+          )}
           <button
             onClick={() => exportToCSV(data)}
             className="flex items-center gap-1.5 bg-white/15 hover:bg-white/25 transition-colors px-3 py-2 rounded-lg text-sm font-medium"

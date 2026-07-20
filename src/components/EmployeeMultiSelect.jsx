@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { X, Check, ChevronDown } from 'lucide-react';
+import { X, Check, ChevronDown, Plus } from 'lucide-react';
 
 const FIELD = 'w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-transparent bg-white';
 
@@ -12,11 +12,18 @@ export default function EmployeeMultiSelect({ employees, selected, onChange, mul
   const containerRef = useRef(null);
   const inputRef = useRef(null);
 
+  const trimmedQuery = query.trim();
+
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const q = trimmedQuery.toLowerCase();
     if (!q) return employees;
     return employees.filter(e => e.toLowerCase().includes(q));
-  }, [employees, query]);
+  }, [employees, trimmedQuery]);
+
+  // Typed a name that isn't in the existing list yet? Offer to add it as a new employee.
+  const canAddNew = trimmedQuery.length > 0
+    && !employees.some(e => e.toLowerCase() === trimmedQuery.toLowerCase())
+    && !selected.some(s => s.toLowerCase() === trimmedQuery.toLowerCase());
 
   useEffect(() => {
     if (!open) return;
@@ -63,9 +70,20 @@ export default function EmployeeMultiSelect({ employees, selected, onChange, mul
     onChange([]);
   }
 
+  function addNew(name) {
+    toggle(name);
+    setQuery('');
+  }
+
   function handleInputKeyDown(e) {
     if (e.key === 'Backspace' && !query && selected.length > 0) {
       onChange(selected.slice(0, -1));
+      return;
+    }
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (canAddNew) addNew(trimmedQuery);
+      else if (filtered.length === 1) toggle(filtered[0]);
     }
   }
 
@@ -115,7 +133,16 @@ export default function EmployeeMultiSelect({ employees, selected, onChange, mul
               </button>
             </div>
           )}
-          {filtered.length === 0 ? (
+          {canAddNew && (
+            <div
+              onClick={() => addNew(trimmedQuery)}
+              className="px-3 py-2 text-sm cursor-pointer flex items-center gap-1.5 text-cyan-600 font-medium hover:bg-cyan-50 border-b border-gray-100"
+            >
+              <Plus className="w-3.5 h-3.5 flex-shrink-0" />
+              <span className="truncate">Add "{trimmedQuery}" as new employee</span>
+            </div>
+          )}
+          {filtered.length === 0 && !canAddNew ? (
             <div className="px-3 py-2 text-xs text-gray-400">No matches</div>
           ) : (
             filtered.map(name => {
